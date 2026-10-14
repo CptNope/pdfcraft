@@ -1,0 +1,72 @@
+name: Deploy PdfCraft PWA to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy-pwa.yml"
+      - "pwa/**"
+      - "apps/pdfcraft-web/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/**"
+      - "packaging/web/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pdfcraft-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build PdfCraft Rust WASM and package PWA
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: 3d9ab3a132ed0eff457e424226a435a901da30d3
+          path: craft-fonts
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: pdfcraft-web-pwa
+      - name: Install Trunk 0.21.14
+        run: |
+          curl -fsSL https://github.com/trunk-rs/trunk/releases/download/v0.21.14/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C "$HOME/.cargo/bin" trunk
+          trunk --version
+      - name: Build browser PDF editor
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+        working-directory: apps/pdfcraft-web
+        run: trunk build --release --locked
+      - name: Validate web assets
+        run: packaging/web/package.sh --skip-build
+      - name: Package PWA
+        run: python3 pwa/prepare_site.py dist/web
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/web
+
+  deploy:
+    name: Publish PdfCraft PWA
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
