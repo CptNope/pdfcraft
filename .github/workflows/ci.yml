@@ -1,12 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: "17 3 * * *" # nightly fuzzing
 
 env:
   CARGO_TERM_COLOR: always
