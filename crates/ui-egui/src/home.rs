@@ -21,7 +21,10 @@ fn card_lift(ui: &egui::Ui, t: &Tokens, rect: Rect, press: theme::Press) {
 pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        egui::Frame::NONE.inner_margin(egui::Margin { left: 36, right: 36, top: 28, bottom: 28 }).show(ui, |ui| {
+        let narrow = ui.ctx().content_rect().width() < 760.0;
+        let pad = if narrow { 12 } else { 36 };
+        let vertical = if narrow { 14 } else { 28 };
+        egui::Frame::NONE.inner_margin(egui::Margin { left: pad, right: pad, top: vertical, bottom: vertical }).show(ui, |ui| {
             ui.label(egui::RichText::new(tl!("Welcome to PdfCraft")).font(theme::semibold(24.0)));
             ui.label(
                 egui::RichText::new(tl!("An open-source PDF workbench — local, private, and scriptable."))
