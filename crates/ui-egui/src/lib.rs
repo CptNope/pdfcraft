@@ -3155,6 +3155,16 @@ impl eframe::App for PdfCraftApp {
         if self.draws_window_frame() {
             window_controls::resize_edges(&ctx);
         }
+        if cfg!(target_arch = "wasm32") && ctx.content_rect().width() < 760.0 {
+            self.mobile_workspace(ui, &ctx);
+            self.process_pending_edits();
+            palette::show(self, &ctx);
+            dialogs::show(self, &ctx);
+            self.show_progress(&ctx);
+            widgets::toast(self, &ctx);
+            self.finish_render_frame(&ctx);
+            return;
+        }
         chrome::tab_strip(self, ui);
         chrome::mode_bar(self, ui);
         if self.active.is_some() {
@@ -3196,6 +3206,71 @@ impl eframe::App for PdfCraftApp {
 }
 
 impl PdfCraftApp {
+    /// Phone workspace keeps the page readable and makes desktop tools reachable in tabs.
+    /// The user's saved docking layout remains untouched.
+    fn mobile_workspace(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let t = theme::Tokens::get(ctx);
+        let pane_id = egui::Id::new("pdfcraft-phone-pane");
+        let mut pane = ctx.data(|data| data.get_temp::<u8>(pane_id)).unwrap_or(0);
+        egui::TopBottomPanel::top("pdfcraft-phone-header")
+            .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(8, 5)))
+            .show_inside(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.small_button("Home").clicked() {
+                        self.active = None;
+                    }
+                    if ui.small_button("Open").clicked() {
+                        self.run_command("file.open");
+                    }
+                    if self.active.is_some() && ui.small_button("Save").clicked() {
+                        self.run_command("file.save");
+                    }
+                    ui.menu_button("More", |ui| {
+                        for (label, mode) in [("Read", Mode::Read), ("Edit", Mode::Edit),
+                            ("Convert", Mode::Convert), ("Sign", Mode::Sign), ("All tools", Mode::AllTools)]
+                        {
+                            if ui.button(label).clicked() {
+                                self.switch_mode(mode, true);
+                                pane = if mode == Mode::Read { 0 } else { 1 };
+                                ui.close();
+                            }
+                        }
+                    });
+                });
+                if self.active.is_some() {
+                    ui.horizontal_wrapped(|ui| {
+                        for (index, label) in [(0, "PDF"), (1, "Tools"), (2, "Pages")] {
+                            if ui.selectable_label(pane == index, label).clicked() {
+                                pane = index;
+                            }
+                        }
+                    });
+                }
+            });
+        ctx.data_mut(|data| data.insert_temp(pane_id, pane));
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.fill(t.pasteboard))
+            .show_inside(ui, |ui| {
+                match self.active {
+                    None if self.combine_showing() => combine_ui::page(self, ui),
+                    None => home::show(self, ui),
+                    Some(index) if pane == 1 => panels::left_panel(self, ui),
+                    Some(_) if pane == 2 => {
+                        if self.right.is_none() {
+                            self.right = Some(RightPanel::Pages);
+                        }
+                        panels::right_panel(self, ui);
+                    }
+                    Some(index) => {
+                        match compare_ui::side_by_side(self, index) {
+                            Some((old, new)) => compare_ui::compare_area(self, old, new, ui),
+                            None => canvas::document_area(self, index, ui),
+                        }
+                    }
+                }
+            });
+    }
+
     fn finish_render_frame(&mut self, ctx: &egui::Context) {
         // The Combine grid's thumbnails, whichever tab shows (renders under way still finish).
         self.combine_thumbs_frame(ctx);
