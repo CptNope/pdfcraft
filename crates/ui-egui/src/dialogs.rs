@@ -80,13 +80,16 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut close = false;
     let mut next = dialog;
     let modal = widgets::show_modal(ctx, "dialog", |ui| {
-        ui.set_width(match dialog {
+        let preferred = match dialog {
             Dialog::Properties(_) => 640.0,
             Dialog::Print => 820.0,
             Dialog::FieldProps | Dialog::BulkFieldProps => 600.0,
             Dialog::About => 780.0,
             _ => 520.0,
-        });
+        };
+        // Never force a desktop-wide dialog on a narrow phone viewport.
+        let screen = ui.ctx().content_rect();
+        ui.set_width(preferred.min((screen.width() - 48.0).max(220.0)));
         match dialog {
             Dialog::WordCount => {
                 close = crate::word_count_ui::body(ui, app);
