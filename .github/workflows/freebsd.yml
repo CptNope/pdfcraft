@@ -5,7 +5,6 @@ name: FreeBSD
 on:
   workflow_dispatch:
 
-
 concurrency:
   group: freebsd-${{ github.ref }}
   cancel-in-progress: true
