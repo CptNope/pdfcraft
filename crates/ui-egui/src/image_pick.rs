@@ -9,14 +9,12 @@ use crate::PdfCraftApp;
 use crate::canvas::{DocView, PageXform};
 use pdfcraft_render::DocInfo;
 
-/// The selected picture: page, index in `page_images` and its box in user space, and the
-/// document's edit generation when it was picked (any later edit may have removed or renumbered it).
+/// The selected picture: page, index in `page_images` and its box in user space.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PickedImage {
     pub page: usize,
     pub index: usize,
     pub rect: [f64; 4],
-    pub generation: u64,
 }
 
 const BLUE: Color32 = Color32::from_rgb(0x3A, 0x7B, 0xF0);
@@ -45,18 +43,8 @@ pub(crate) fn page_input(
     let (vx, vy) = xf.screen_to_view(p);
     let u = info_page.view_to_user(vx, vy);
     let at = [f64::from(u[0]), f64::from(u[1])];
-    let generation = doc.edit_generation();
     view.picked_image =
-        doc.page_image_at(page, at).and_then(|index| doc.page_images(page).get(index).map(|i| PickedImage { page, index, rect: i.rect, generation }));
-}
-
-/// Forget the selected picture once the document has been edited since it was picked: Edit text &
-/// images (or Undo) may have deleted or moved it, and its highlight would stay behind on an empty
-/// spot of the page.
-pub(crate) fn drop_stale(doc: &pdfcraft_engine::Document, view: &mut DocView) {
-    if view.picked_image.is_some_and(|p| p.generation != doc.edit_generation()) {
-        view.picked_image = None;
-    }
+        doc.page_image_at(page, at).and_then(|index| doc.page_images(page).get(index).map(|i| PickedImage { page, index, rect: i.rect }));
 }
 
 /// The selected picture's highlight on page `page`.
